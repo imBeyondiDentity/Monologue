@@ -651,7 +651,11 @@
     const { f0, voiced, numFrames, frameRate } = analyzePitch(mono, sr);
     const target = flattenPitch(f0, voiced, frameRate, opts.vibratoCutoff, opts.flatten);
     let y = resynthesize(mono, f0, voiced, target, numFrames);
-    const cuts = findSustainCuts(target, voiced, frameRate, opts.sustainMs, opts.triggerMs);
+    // held-note detection must run on the RAW pitch, not the flattened one —
+    // flattening already squashes cents-variance toward 0, so checking the
+    // flattened contour here made almost every phrase look "held" and got
+    // it wrongly time-compressed.
+    const cuts = findSustainCuts(f0, voiced, frameRate, opts.sustainMs, opts.triggerMs);
     y = spliceOutRegions(y, cuts, Math.round(0.02 * sr));
     return y;
   }
