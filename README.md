@@ -1,87 +1,61 @@
 # Monologue
 
-Upload a solo vocal — a cappella, no music underneath — and get the same
-voice back, reading the words instead of singing them.
+Upload a solo vocal — a cappella, no music underneath. Monologue clones
+the voice from it and reads any text in that same voice: the song's own
+lyrics, or anything else you paste in.
 
-Two ways to do it, and two tools:
+## Browser — `monologue.html`
 
-|              | **Signal** (`dsp`)                              | **Clone** (`ai`)                                     |
-|--------------|--------------------------------------------------|-------------------------------------------------------|
-| How          | Reshapes the take itself: flattens the melody, smooths vibrato, shrinks held notes to spoken length | Transcribes the vocal, then speaks the text back in a clone of the same voice |
-| Needs        | Nothing — fully offline                          | An engine: ElevenLabs (cloud, paid) or Coqui XTTS (local, free) |
-| Sounds like  | The original take, "de-sung"                     | A fresh, natural reading in the same voice             |
-| Where        | Browser app *or* CLI                             | Browser app (ElevenLabs only) *or* CLI (either engine) |
+A single self-contained page, same design as Peel, with an RU/EN
+toggle. No server or build step: open it, or serve it from GitHub Pages.
 
-## Browser app — `index.html`
+1. Drop in the vocal. It's used only as the voice sample.
+2. Paste the text to read — or press **Fill in from the vocal** to pull
+   the lyrics out of the recording with ElevenLabs Scribe.
+3. Press **Read it in this voice**. Listen, compare with the original,
+   download as WAV.
 
-A single self-contained page. Open it directly, or publish it as a static
-site (GitHub Pages works fine — no server or build step needed).
+It runs on the ElevenLabs API with your own key (paste it into the page;
+tick "remember" to keep it in this browser only). The vocal and text go
+straight from your browser to ElevenLabs — nothing passes through any
+other server. The temporary voice clone is deleted from your account
+afterwards unless you tick "keep the cloned voice".
 
-- **Signal** mode runs entirely in the browser: nothing is uploaded
-  anywhere. Four sliders (flatten amount, vibrato cutoff, held-note
-  target length, and the threshold for what counts as "held") let you
-  tune it by ear.
-- **Clone** mode calls the ElevenLabs API directly from the page with an
-  API key you paste in (kept in memory, or in this browser's local
-  storage only if you tick "remember"). It transcribes with Scribe, lets
-  you fix any misheard words, clones the voice, generates the reading,
-  and — unless you tick "keep the cloned voice" — deletes the temporary
-  clone from your account afterwards.
+**Getting a key:** elevenlabs.io → Developers → API Keys → Create API
+Key, with Text to Speech, Speech to Text and Voices (write) enabled.
+Instant voice cloning needs a paid plan (Starter or higher).
 
-The in-browser signal path is a simplified pitch-shift (autocorrelation
-pitch tracking + a windowed resample-and-overlap-add). It's solid for
-typical singing ranges, but wide melodic leaps or belted high notes can
-come out a little "chipmunked," since a simple resample shifts the vocal
-formants along with the pitch. For those, use the CLI's `dsp` mode
-instead — it separates pitch from timbre properly (see below).
+**Getting a closer voice:** a clone made from singing can carry a bit of
+the sung colour. Longer, cleaner takes (1–2 minutes, no effects or
+harmonies) give the closest match.
 
-## Python CLI — `cli/monologue.py`
+**iOS:** if the file picker greys out your audio files, drag the file
+onto the dropzone instead.
+
+## CLI — `monologue.py`
+
+Same idea from the command line, with a second engine that's free and
+fully local.
 
 ```bash
-pip install -r cli/requirements.txt
+pip install -r requirements.txt
 
-# signal mode — offline, no API key
-python cli/monologue.py take_04.wav dsp -o take_04_spoken.wav
-
-# tune it
-python cli/monologue.py take_04.wav dsp -o out.wav --flatten 0.5 --sustain-ms 150
-
-# clone mode — pick an engine
+# ElevenLabs — best likeness
 export ELEVENLABS_API_KEY=sk_...
-python cli/monologue.py take_04.wav ai --engine elevenlabs -o out.wav
+python monologue.py take.wav --engine elevenlabs -o out.wav
 
-pip install TTS torch   # only needed for the local engine
-python cli/monologue.py take_04.wav ai --engine xtts -o out.wav --language lv
+# your own text instead of the lyrics
+python monologue.py take.wav --engine elevenlabs -o out.wav \
+    --text-file words.txt
+
+# local Coqui XTTS-v2 — free, no key
+pip install TTS torch
+python monologue.py take.wav --engine xtts -o out.wav --language ru
 ```
 
-`dsp` mode uses the [WORLD vocoder](https://github.com/mmorise/World) to
-split the recording into pitch, spectral envelope, and aperiodicity, so
-it can flatten the melody and shrink held notes without touching the
-timbre or formants — cleaner results than the browser version, especially
-on wide vocal ranges.
+Without `--text` / `--text-file` the lyrics are transcribed from the
+vocal with `faster-whisper` (or `openai-whisper`). With `--engine xtts`
+and your own text, pass `--language` as well. XTTS is slow on CPU; a
+GPU helps a lot.
 
-`ai` mode transcribes with `faster-whisper` (or `openai-whisper` as a
-fallback), then either:
-- **`--engine elevenlabs`** — instant-clones the voice from the sample
-  and generates the reading via the ElevenLabs API (needs
-  `ELEVENLABS_API_KEY`, costs a small amount per character, best
-  likeness), or
-- **`--engine xtts`** — clones and generates locally with Coqui
-  XTTS-v2 (free, no internet needed once the model's downloaded, but
-  slow on CPU — a GPU helps a lot).
-
-Run `python cli/monologue.py --help` for the full flag list, including
-the four signal-mode knobs also exposed as sliders in the browser app.
-
-## Repo layout
-
-```
-monologue/
-├── index.html            browser app
-├── README.md
-└── cli/
-    ├── monologue.py
-    └── requirements.txt
-```
-
-Suggested repo name, matching the others: `imBeyondiDentity/monologue`.
+Run `python monologue.py --help` for all flags.
